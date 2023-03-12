@@ -71,56 +71,70 @@ class ParserGenerator {
     return node;
   }
 
-  //G item = "ID" | "INT" | "REAL" | "STR" | "END" | STR | ID |
+  //G item = ("ID"
+  //    | "INT"
+  //    | "REAL"
+  //    | "STR"
+  //    | "END"
+  //    | STR
+  //    | ID |
   //    | "{" alternatives "}"
-  //    | "[" alternatives "]" | "(" alternatives ")";
+  //    | "[" alternatives "]"
+  //    | "(" alternatives ")"
+  //  ) ["@" ID];
   RuleNode _parseItem() {
+    RuleNode n = RuleNode(RuleNodeType.integer);
     if (_lex.isTerminal("ID")) {
       _lex.next();
-      return RuleNode(RuleNodeType.identifier);
+      n = RuleNode(RuleNodeType.identifier);
     } else if (_lex.isTerminal("INT")) {
       _lex.next();
-      return RuleNode(RuleNodeType.integer);
+      n = RuleNode(RuleNodeType.integer);
     } else if (_lex.isTerminal("REAL")) {
       _lex.next();
-      return RuleNode(RuleNodeType.real);
+      n = RuleNode(RuleNodeType.real);
     } else if (_lex.isTerminal("STR")) {
       _lex.next();
-      return RuleNode(RuleNodeType.string);
+      n = RuleNode(RuleNodeType.string);
     } else if (_lex.isTerminal("END")) {
       _lex.next();
-      return RuleNode(RuleNodeType.end);
+      n = RuleNode(RuleNodeType.end);
     } else if (_lex.isIdentifier()) {
       var id = _lex.identifier();
       var node = RuleNode(RuleNodeType.nonTerminal);
       node.value = id;
-      return node;
+      n = node;
     } else if (_lex.isString()) {
       var str = _lex.string();
       var node = RuleNode(RuleNodeType.terminal);
       node.value = str;
-      return node;
+      n = node;
     } else if (_lex.isTerminal("{")) {
       var node = RuleNode(RuleNodeType.repetition);
       _lex.next();
       node.subNodes.add(_parseAlternatives());
       _lex.terminal("}");
-      return node;
+      n = node;
     } else if (_lex.isTerminal("[")) {
       var node = RuleNode(RuleNodeType.option);
       _lex.next();
       node.subNodes.add(_parseAlternatives());
       _lex.terminal("]");
-      return node;
+      n = node;
     } else if (_lex.isTerminal("(")) {
       _lex.next();
       var node = _parseAlternatives();
       _lex.terminal(")");
-      return node;
+      n = node;
     } else {
       _lex.error("expected rule item, but got '${_lex.getToken().token}'");
       throw Exception();
     }
+    if (_lex.isTerminal("@")) {
+      _lex.next();
+      n.alias = _lex.identifier();
+    }
+    return n;
   }
 
   @override
