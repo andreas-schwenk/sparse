@@ -3,7 +3,7 @@
 # License: GPL-3.0-or-later
 
 name: sparse
-description: Simple and configurable generator by Andreas Schwenk.
+description: Simple and configurable PEG parser generator by Andreas Schwenk.
 version: 0.0.1
 repository: https://github.com/andreas-schwenk/sparse
 
