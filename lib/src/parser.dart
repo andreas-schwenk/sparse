@@ -7,21 +7,22 @@ import 'package:slex/slex.dart';
 import 'grammar.dart';
 
 class ParseTreeNode {
-  bool root;
+  bool isOption = false;
+  bool isRepetition = false;
+  bool isSequence = false;
+  bool isNonTerminal = false;
   String ruleID;
   String alias = '';
   LexerToken? token;
   List<ParseTreeNode> subNodes = [];
+  String nonTerminalId = '';
 
-  ParseTreeNode(this.root, this.ruleID, this.token);
+  ParseTreeNode(this.ruleID, this.token);
 
-  String getTerminal(String id) {
+  String getTerminal(String alias) {
     for (var n in subNodes) {
-      if (n.token != null) {
-        var tk = n.token as LexerToken;
-        if (n.alias == id || tk.type.name.toUpperCase() == id) {
-          return tk.token;
-        }
+      if (n.token != null && n.alias == alias) {
+        return (n.token as LexerToken).token;
       }
     }
     return '';
@@ -40,10 +41,28 @@ class ParseTreeNode {
     return t;
   }
 
-  ParseTreeNode? getNonTerminal(String id) {
+  ParseTreeNode? getNonTerminal(String alias) {
     for (var n in subNodes) {
-      if (n.alias == id || n.ruleID == id) {
+      if (n.isNonTerminal && n.alias == alias) {
         return n;
+      }
+    }
+    return null;
+  }
+
+  bool isOptionNonempty(String alias) {
+    for (var n in subNodes) {
+      if (n.isOption && n.alias == alias) {
+        return n.subNodes.isNotEmpty;
+      }
+    }
+    return false;
+  }
+
+  ParseTreeNode? getOption(String alias) {
+    for (var n in subNodes) {
+      if (n.isOption && n.alias == alias && n.subNodes.isNotEmpty) {
+        return n.subNodes[0];
       }
     }
     return null;
@@ -53,13 +72,23 @@ class ParseTreeNode {
   String toString([int indent = 0]) {
     var s = '';
     for (var i = 0; i < indent; i++) {
-      s += ' ';
+      s += '  ';
     }
-    if (root) s += '*';
-    if (token == null) {
-      s += '$ruleID:\n';
-    } else {
-      s += '$ruleID:$token:\n';
+    if (isOption) {
+      s += '[OPTION]';
+    } else if (isRepetition) {
+      s += '[REPETITION]';
+    } else if (isSequence) {
+      s += '[SEQUENCE]';
+    } else if (isNonTerminal) {
+      s += '$nonTerminalId[NON-TERMINAL]';
+    } else if (token != null) {
+      var t = token as LexerToken;
+      s += '${t.type.name.toUpperCase()}:${t.row}:${t.col}:${t.token}';
+    }
+    s += '\n';
+    if (s.trim().isEmpty) {
+      var bp = 1337;
     }
     for (var n in subNodes) {
       s += n.toString(indent + 1);
@@ -117,22 +146,22 @@ class Parser {
       case RuleNodeType.alternatives:
         {
           // TODO: accelerate with FIRST set
-          var ptn = ParseTreeNode(ruleRootCall, rule.id, null);
-          ParseTreeNode? subPtn;
+          ParseTreeNode? ptn;
           for (var n in node.subNodes) {
             var bak = _lex.backupState();
-            subPtn = _parseRuleNode(rule, n);
-            if (subPtn != null) {
-              ptn.subNodes.add(subPtn);
+            ptn = _parseRuleNode(rule, n);
+            if (ptn != null) {
+              //ptn.root = ruleRootCall;
               break;
             }
             _lex.replayState(bak);
           }
-          return subPtn == null ? null : ptn;
+          return ptn;
         }
       case RuleNodeType.sequence:
         {
-          var ptn = ParseTreeNode(ruleRootCall, rule.id, null);
+          var ptn = ParseTreeNode(rule.id, null);
+          ptn.isSequence = true;
           for (var n in node.subNodes) {
             var subPtn = _parseRuleNode(rule, n);
             if (subPtn == null) {
@@ -145,7 +174,9 @@ class Parser {
         }
       case RuleNodeType.option:
         {
-          var ptn = ParseTreeNode(ruleRootCall, rule.id, null);
+          var ptn = ParseTreeNode(rule.id, null);
+          ptn.alias = node.alias;
+          ptn.isOption = true;
           var bak = _lex.backupState();
           var subPtn = _parseRuleNode(rule, node.subNodes[0]);
           if (subPtn == null) {
@@ -157,7 +188,9 @@ class Parser {
         }
       case RuleNodeType.repetition:
         {
-          var ptn = ParseTreeNode(ruleRootCall, rule.id, null);
+          var ptn = ParseTreeNode(rule.id, null);
+          ptn.alias = node.alias;
+          ptn.isRepetition = true;
           while (true) {
             var bak = _lex.backupState();
             var subPtn = _parseRuleNode(rule, node.subNodes[0]);
@@ -173,7 +206,8 @@ class Parser {
       case RuleNodeType.identifier:
         {
           if (_lex.isIdentifier()) {
-            var ptn = ParseTreeNode(ruleRootCall, rule.id, _lex.getToken());
+            var ptn = ParseTreeNode(rule.id, _lex.getToken());
+            ptn.alias = node.alias;
             _lex.identifier();
             return ptn;
           }
@@ -182,7 +216,8 @@ class Parser {
       case RuleNodeType.integer:
         {
           if (_lex.isInteger()) {
-            var ptn = ParseTreeNode(ruleRootCall, rule.id, _lex.getToken());
+            var ptn = ParseTreeNode(rule.id, _lex.getToken());
+            ptn.alias = node.alias;
             _lex.integer();
             return ptn;
           }
@@ -191,7 +226,8 @@ class Parser {
       case RuleNodeType.real:
         {
           if (_lex.isRealNumber()) {
-            var ptn = ParseTreeNode(ruleRootCall, rule.id, _lex.getToken());
+            var ptn = ParseTreeNode(rule.id, _lex.getToken());
+            ptn.alias = node.alias;
             _lex.realNumber();
             return ptn;
           }
@@ -200,7 +236,8 @@ class Parser {
       case RuleNodeType.string:
         {
           if (_lex.isString()) {
-            var ptn = ParseTreeNode(ruleRootCall, rule.id, _lex.getToken());
+            var ptn = ParseTreeNode(rule.id, _lex.getToken());
+            ptn.alias = node.alias;
             _lex.string();
             return ptn;
           }
@@ -209,7 +246,8 @@ class Parser {
       case RuleNodeType.end:
         {
           if (_lex.isEnd()) {
-            var ptn = ParseTreeNode(ruleRootCall, rule.id, _lex.getToken());
+            var ptn = ParseTreeNode(rule.id, _lex.getToken());
+            ptn.alias = node.alias;
             _lex.end();
             return ptn;
           }
@@ -218,7 +256,8 @@ class Parser {
       case RuleNodeType.terminal:
         {
           if (_lex.isTerminal(node.value)) {
-            var ptn = ParseTreeNode(ruleRootCall, rule.id, _lex.getToken());
+            var ptn = ParseTreeNode(rule.id, _lex.getToken());
+            ptn.alias = node.alias;
             _lex.terminal(node.value);
             return ptn;
           }
@@ -226,11 +265,18 @@ class Parser {
         }
       case RuleNodeType.nonTerminal:
         {
+          var ptn = ParseTreeNode(rule.id, null);
+          ptn.alias = node.alias;
+          ptn.isNonTerminal = true;
           var nonTerminalRule = node.nonTerminalRef as Rule;
-          var ptn =
+          ptn.nonTerminalId = nonTerminalRule.id;
+          var ptnSub =
               _parseRuleNode(nonTerminalRule, nonTerminalRule.rootNode, true);
-          if (ptn != null) {
-            callback(ptn);
+          if (ptnSub == null) {
+            return null;
+          } else {
+            ptn.subNodes.add(ptnSub);
+            callback(ptnSub);
           }
           return ptn;
         }
