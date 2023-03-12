@@ -2,6 +2,8 @@
 /// (c) 2023 by Andreas Schwenk <mailto:contact@compiler-construction.com>
 /// License: GPL-3.0-or-later
 
+// TODO: code doc
+
 import 'package:slex/slex.dart';
 
 import 'grammar.dart';
