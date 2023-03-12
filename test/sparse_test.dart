@@ -16,7 +16,7 @@ enumItem = ID;
 class = "class" ID "{" {classItem} "}";
 classItem = attribute | function;
 attribute = ["static"|"final"] type ID [ "=" expr ] ";";
-function = type ID "(" [parameters] ")" block;
+function = type@t ID@id "(" [parameters]@p ")" block@b;
 type = "void" | "bool" | "int" | "double" | "number" | "String"
   | "List" "<" type ">"
   | "Map" "<" type "," type ">"
@@ -73,10 +73,18 @@ void callback(ParseTreeNode n) {
   switch (n.ruleID) {
     case "function":
       {
-        var id = n.getTerminal('ID');
-        var type = n.getNonTerminal('type');
+        var id = n.getTerminal('id');
+        var type = n.getNonTerminal('t');
         var typeTerminals = type?.getTerminals();
-        // TODO: parameters
+        if (n.isOptionNonempty('p')) {
+          var parameters = n.getOption('p');
+        }
+        var block = n.getNonTerminal('b');
+        break;
+      }
+    case "type":
+      {
+        var bp = 1337;
         break;
       }
     default:
