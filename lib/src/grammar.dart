@@ -21,6 +21,7 @@ class RuleNode {
   List<RuleNode> subNodes = [];
   String value = '';
   Rule? nonTerminalRef;
+  String alias = '';
 
   RuleNode(this.type);
 
